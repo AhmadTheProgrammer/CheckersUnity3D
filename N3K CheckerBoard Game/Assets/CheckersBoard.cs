@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class CheckersBoard : MonoBehaviour
 {
@@ -208,7 +205,7 @@ public class CheckersBoard : MonoBehaviour
                 //endturn
                 EndTurn();
             }
-            //if the move is invalid
+            //if the move is invalid snap the piece back to it's place.
             else 
             {
                 MovePiece(selectedPiece, x1, y1);
