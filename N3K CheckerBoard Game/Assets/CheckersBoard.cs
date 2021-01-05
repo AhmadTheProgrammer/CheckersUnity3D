@@ -13,7 +13,7 @@ public class CheckersBoard : MonoBehaviour
 
     private Vector3 boardOffset = new Vector3(-4.0f, 0, -4.0f);
     private Vector3 pieceOffset = new Vector3(0.5f, 0, 0.5f);
-
+    
     private Vector2 mouseOver; // to keep track of mouse position all time
     private Piece selectedPiece;// for storing the peice that is currently selected
     private Vector2 startDrag;
@@ -207,6 +207,14 @@ public class CheckersBoard : MonoBehaviour
 
                 //endturn
                 EndTurn();
+            }
+            //if the move is invalid
+            else 
+            {
+                MovePiece(selectedPiece, x1, y1);
+                startDrag = Vector2.zero;
+                selectedPiece = null;
+                return;
             }
         }
 
