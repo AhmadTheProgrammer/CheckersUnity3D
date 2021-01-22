@@ -1,5 +1,5 @@
-﻿using UnityEngine;
-
+﻿using System.Collections.Generic;
+using UnityEngine;
 public class CheckersBoard : MonoBehaviour
 {
     // make a 2d array of pieces(black and white players)
@@ -16,9 +16,11 @@ public class CheckersBoard : MonoBehaviour
     private Vector2 startDrag;
     private Vector2 endDrag;
 
-    private bool isWhite;
+    public bool isWhite;
     private bool isWhiteTurn;
+    private bool hasKilled;
 
+    private List<Piece> forcedPieces;
 
 
 
@@ -96,11 +98,22 @@ public class CheckersBoard : MonoBehaviour
             return;
 
         Piece p = pieces[x, y];
-        if (p != null)
+        if (p != null && p.isWhite == isWhite)
         {
-            selectedPiece = p;
-            startDrag = mouseOver;
+            if (forcedPieces.Count == 0)
+            {
+                selectedPiece = p;
+                startDrag = mouseOver;
+                Debug.Log(selectedPiece.name);
+            }
+            else
+            {
+                if (forcedPieces.Find(fp => fp == p) == null)
+                    return;
 
+                selectedPiece = p;
+                startDrag = mouseOver;
+            }
         }
 
 
@@ -123,7 +136,9 @@ public class CheckersBoard : MonoBehaviour
 
     void Start()
     {
+        
         isWhiteTurn = true;
+        forcedPieces = new List<Piece>();
         GenerateBoard();
     }// Start is called before the first frame update
 
@@ -133,7 +148,8 @@ public class CheckersBoard : MonoBehaviour
         UpdateMouseOver();
         //Debug.Log(mouseOver);
 
-        { //if it's my turn
+        if((isWhite)? isWhiteTurn : !isWhiteTurn)
+        { 
             int x = (int)mouseOver.x;
             int y = (int)mouseOver.y;
 
@@ -152,6 +168,9 @@ public class CheckersBoard : MonoBehaviour
 
     private void TryMove(int x1, int y1, int x2, int y2)
     {
+
+        forcedPieces = ScanForPossibleMove();
+
         // for multiplayer purposes ????
         startDrag = new Vector2(x1, y1);
         endDrag = new Vector2(x2, y2);
@@ -188,14 +207,25 @@ public class CheckersBoard : MonoBehaviour
             if (selectedPiece.validMove(pieces, x1, y1, x2, y2))
             {
                 //did we kill anything? //did we jump>?
-                if (Mathf.Abs(x1 - x2) == 2)
+                if (Mathf.Abs(x2 - x1) == 2)
                 {
                     Piece p = pieces[(x1 + x2) / 2, (y1 + y2) / 2];
                     if (p != null)
                     {
                         pieces[(x1 + x2) / 2, (y1 + y2) / 2] = null; //delete that piece from array
                         Destroy(p.gameObject); //delete that piece from scene .
+                        hasKilled = true;
                     }
+                }
+                //block all mooves if we have a kill move possible 
+                // were we supposed to kill anyone and we didn't then cancel all other moves except kill move
+                if(forcedPieces.Count!=0 && !hasKilled)
+                {
+                    // cancel the move
+                    MovePiece(selectedPiece, x1, y1);
+                    startDrag = Vector2.zero;
+                    selectedPiece = null;
+                    return;
                 }
 
                 pieces[x2, y2] = selectedPiece;
@@ -204,6 +234,11 @@ public class CheckersBoard : MonoBehaviour
 
                 //endturn
                 EndTurn();
+                
+                //----------------------rotating camera from white player to black player--------
+                //Camera.main.transform.position+= new Vector3(0,0,11);
+                //Camera.main.transform.RotateAround(Camera.main.transform.position,Vector3.up,180);
+
             }
             //if the move is invalid snap the piece back to it's place.
             else 
@@ -220,20 +255,100 @@ public class CheckersBoard : MonoBehaviour
     }
     private void EndTurn()
     {
+        //keeping track of where we landed during the turn
+
+        int x = (int)endDrag.x;
+        int y = (int)endDrag.y;
+
+        // making king condition
+        if (selectedPiece != null)
+        {
+            if(selectedPiece.isWhite && !selectedPiece.isKing && y == 7)
+            {
+                selectedPiece.isKing = true;
+                selectedPiece.transform.Rotate(Vector3.right * 180);
+            }
+            else if(!selectedPiece.isWhite && !selectedPiece.isKing && y == 0)
+            {
+                selectedPiece.isKing = true;
+                selectedPiece.transform.Rotate(Vector3.right * 180);
+            }
+        }
+
+
         selectedPiece = null; // we are done moving the piece that we selected
         startDrag = Vector2.zero;
+        if (ScanForPossibleMove(x, y).Count != 0 && hasKilled)
+            return;
 
 
-        isWhiteTurn = !isWhiteTurn; //a line which is to be removed in the future.
+
+        isWhiteTurn = !isWhiteTurn; 
+        isWhite = !isWhite;
+        hasKilled = false;
+        
         CheckVictory();
 
-
+        ScanForPossibleMove();
     }
 
     private void CheckVictory()
     {
+        Piece[] ps = FindObjectsOfType<Piece>();
+        bool hasWhite = false; bool hasBlack = false;
+        for (int i = 0; i < ps.Length; i++)
+        {
+            if (ps[i].isWhite)
+                hasWhite = true;
+            else
+                hasBlack = true;
 
+        }
+
+        if (!hasWhite)
+            Victory(false);
+        if (!hasBlack)
+            Victory(true);
     }
+
+    private void Victory(bool isWhite)
+    {
+        if (isWhite)
+            Debug.Log("White plyaer has won");
+       else
+            Debug.Log("Black Player has won");
+    }
+
+
+    // a function that returns list of all pieces that are forced to move
+    
+    private List<Piece> ScanForPossibleMove()
+    {
+        forcedPieces = new List<Piece>();
+        // go thru all piecs
+        for(int i=0; i < 8; i++)
+        {
+            for(int j=0; j < 8; j++)
+            {
+                if (pieces[i, j] != null && pieces[i, j].isWhite == isWhiteTurn)
+                    if (pieces[i, j].isForcedToMove(pieces, i, j))
+                        forcedPieces.Add(pieces[i, j]);
+            }
+        }
+
+        return forcedPieces;
+    }
+
+    private List<Piece> ScanForPossibleMove(int x,int y)
+    {
+        forcedPieces = new List<Piece>();
+        if (pieces[x, y].isForcedToMove(pieces, x, y))
+            forcedPieces.Add(pieces[x, y]);
+
+        return forcedPieces;
+    }
+
+
 
 
 }
